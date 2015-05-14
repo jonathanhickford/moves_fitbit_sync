@@ -1,2 +1,4 @@
-client_secrets.json
-auth.json
+moves_client_secrets.json
+moves_auth.json
+fitbit_client_secrets.json
+fitbit_auth.json

@@ -10,8 +10,8 @@ require 'moves'
 require 'json'
 
 
-
-
+MOVES_CLIENT_SECRETS_FILE = 'moves_client_secrets.json'
+MOVES_AUTH_FILE = 'moves_auth.json'
 
 
 
@@ -21,7 +21,7 @@ class MovesApp < Sinatra::Base
     set :inline_templates, true
     set :access_token, nil
     if File.file?('auth.json')
-      auth = JSON.parse(File.read('auth.json'))
+      auth = JSON.parse(File.read(MOVES_AUTH_FILE))
       p auth['credentials']['token']
       set :access_token, auth['credentials']['token']
     end
@@ -30,10 +30,8 @@ class MovesApp < Sinatra::Base
   end
 
   use OmniAuth::Builder do
-    client_secrets = JSON.parse(File.read('client_secrets.json'))
-    #puts client_secrets['client_id']
-    #puts client_secrets['client_secret']
-    provider :moves, client_secrets['client_id'], client_secrets['client_secret']
+    moves_client_secrets = JSON.parse(File.read(MOVES_CLIENT_SECRETS_FILE))
+    provider :moves, moves_client_secrets['client_id'], client_secrets['client_secret']
   end
 
 
@@ -56,8 +54,8 @@ class MovesApp < Sinatra::Base
 
   get '/auth/:provider/callback' do
     json = JSON.pretty_generate(request.env['omniauth.auth'])
-    File.open('auth.json', 'w') { |file| file.write(json) }
-    auth = JSON.parse(File.read('auth.json'))
+    File.open(MOVES_AUTH_FILE, 'w') { |file| file.write(json) }
+    auth = JSON.parse(File.read(MOVES_AUTH_FILE))
     set :access_token, auth['credentials']['token']
 
     erb "<h1>#{params[:provider]}</h1>
