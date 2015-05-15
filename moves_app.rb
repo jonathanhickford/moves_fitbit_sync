@@ -32,6 +32,22 @@ class MovesApp < Sinatra::Base
         nil
       end
     end
+
+    def load_fitbit_access_token_from_file
+      begin
+        if File.file?(FITBIT_AUTH_FILE)
+          auth = JSON.parse(File.read(FITBIT_AUTH_FILE))
+          [auth['credentials']['token'] , auth['credentials']['secret']]
+        else
+          [nil, nil]
+        end
+      rescue
+        [nil, nil]
+      end
+    end
+
+
+
   end
 
 
@@ -55,7 +71,8 @@ class MovesApp < Sinatra::Base
     erb "
       <p><%= session['moves_access_token'] %></p>
       <p><a href='/grant_access'>Grant Access to Accounts</a></p>
-      <p><a href='/moves_summary'>Todays activities</a></p>
+      <p><a href='/moves_summary'>Todays moves activities</a></p>
+      <p><a href='/fitbit_summary'>Todays fitbit activities</a></p>
     "
   end
 
@@ -96,16 +113,24 @@ class MovesApp < Sinatra::Base
   end
   
   get '/fitbit_summary' do
-    client = Fitgem::Client.new(config[:oauth])
     
-    erb "<h1>Summary:</h1><pre>#{JSON.pretty_generate(moves.daily_activities)}</pre>"
+    client_secrets = JSON.parse(File.read(CLIENT_SECRETS_FILE))
+    credentials = load_fitbit_access_token_from_file()
+
+    client = Fitgem::Client.new ({
+      :consumer_key => client_secrets['fitbit_client_key'],
+      :consumer_secret => client_secrets['fitbit_client_secret'],
+      :token => credentials[0],
+      :secret =>credentials[1]
+    })
+   
+    
+    access_token = client.reconnect(credentials[0],credentials[1])
+    
+    
+    erb "<h1>Summary:</h1><pre>#{JSON.pretty_generate(client.activities_on_date 'today')}</pre>"
   end
 
-
-
-
-
-client = Fitgem::Client.new(config[:oauth])
 
 end
 

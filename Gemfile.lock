@@ -23,6 +23,8 @@ GEM
     faraday (0.9.1)
       multipart-post (>= 1.2, < 3)
     ffi (1.9.8-x86-mingw32)
+    fitgem (0.10.0)
+      oauth
     hashie (3.4.1)
     http-cookie (1.0.2)
       domain_name (~> 0.5)
@@ -76,6 +78,7 @@ PLATFORMS
   x86-mingw32
 
 DEPENDENCIES
+  fitgem
   moves
   omniauth
   omniauth-fitbit!
