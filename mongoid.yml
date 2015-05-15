@@ -1,0 +1,6 @@
+development:
+  sessions:
+    default:
+      database: moves_fitbit
+      hosts:
+        - localhost:27017

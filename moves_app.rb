@@ -11,10 +11,43 @@ require 'moves'
 require 'fitgem'
 require 'json'
 
+require 'mongoid'
 
 CLIENT_SECRETS_FILE = 'client_secrets.json'
 MOVES_AUTH_FILE = 'moves_auth.json'
 FITBIT_AUTH_FILE = 'fitbit_auth.json'
+
+
+class User
+  include Mongoid::Document
+ 
+  field :name, type: String
+
+  has_one :moves_account
+  has_one :fitbit_account
+end
+
+class FitbitAccount
+  include Mongoid::Document
+
+  field :uid, type: String
+  field :access_token, type: String
+  field :secret_token, type: String
+
+  belongs_to :user
+end
+
+class MovesAccount
+  include Mongoid::Document
+
+  field :uid, type: String
+  field :access_token, type: String
+  field :refresh_token, type: String
+  field :expires_at, type: DateTime
+
+  belongs_to :user
+end
+
 
 
 class MovesApp < Sinatra::Base
@@ -56,6 +89,7 @@ class MovesApp < Sinatra::Base
   configure do
     set :sessions, true
     set :inline_templates, true
+    Mongoid.load!("./mongoid.yml")
     
   end
 
@@ -75,6 +109,29 @@ class MovesApp < Sinatra::Base
       <p><a href='/fitbit_summary'>Todays fitbit activities</a></p>
     "
   end
+
+  get '/register' do
+    user = User.new
+    erb "
+    <form action='/user' method='POST'>
+        <input type='hidden' name='_method' value='POST'/>
+        <input type='text' name ='user[name]'/>
+        <input type='submit' name='submit' value='Save'/>
+      </form>
+    "
+  end
+
+  post '/user' do
+    user = User.new(params[:user])
+    if user.save
+      redirect '/'
+    else
+      "Error saving doc"
+    end
+  end
+
+
+
 
 
   get '/grant_access' do

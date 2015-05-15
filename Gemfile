@@ -5,3 +5,4 @@ gem "omniauth"
 gem 'omniauth-moves', github: 'nickelser/omniauth-moves'
 gem 'omniauth-fitbit', github: 'tkgospodinov/omniauth-fitbit'
 gem "sinatra"
+gem "mongoid", "~> 4.0.0"
