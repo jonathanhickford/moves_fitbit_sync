@@ -7,6 +7,14 @@ GIT
       omniauth (~> 1.0)
       omniauth-oauth2 (~> 1.0)
 
+GIT
+  remote: git://github.com/tkgospodinov/omniauth-fitbit.git
+  revision: 0aefd35a5892f00e5418e8326fa3c9c89add8dcd
+  specs:
+    omniauth-fitbit (1.0.3)
+      multi_xml
+      omniauth-oauth (~> 1.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -26,6 +34,7 @@ GEM
     multi_xml (0.5.5)
     multipart-post (2.0.0)
     netrc (0.10.3)
+    oauth (0.4.7)
     oauth2 (1.0.0)
       faraday (>= 0.8, < 0.10)
       jwt (~> 1.0)
@@ -35,12 +44,19 @@ GEM
     omniauth (1.2.2)
       hashie (>= 1.2, < 4)
       rack (~> 1.0)
+    omniauth-oauth (1.1.0)
+      oauth
+      omniauth (~> 1.0)
     omniauth-oauth2 (1.3.0)
       oauth2 (~> 1.0)
       omniauth (~> 1.2)
     rack (1.6.1)
     rack-protection (1.5.3)
       rack
+    rest-client (1.8.0)
+      http-cookie (>= 1.0.2, < 2.0)
+      mime-types (>= 1.16, < 3.0)
+      netrc (~> 0.7)
     rest-client (1.8.0-x86-mingw32)
       ffi (~> 1.9)
       http-cookie (>= 1.0.2, < 2.0)
@@ -53,6 +69,7 @@ GEM
     tilt (2.0.1)
     unf (0.1.4)
       unf_ext
+    unf_ext (0.0.7.1)
     unf_ext (0.0.7.1-x86-mingw32)
 
 PLATFORMS
@@ -61,5 +78,6 @@ PLATFORMS
 DEPENDENCIES
   moves
   omniauth
+  omniauth-fitbit!
   omniauth-moves!
   sinatra
