@@ -14,63 +14,9 @@ require 'json'
 
 require 'mongoid'
 
-CLIENT_SECRETS_FILE = 'client_secrets.json'
+FITBIT_BIKE_RIDE_PARENT_ID = 90001
 
-
-class User
-  include Mongoid::Document
- 
-  field :name, type: String
-
-  embeds_one :moves_account
-  embeds_one :fitbit_account
-end
-
-class FitbitAccount
-  include Mongoid::Document
-
-  field :uid, type: String
-  field :access_token, type: String
-  field :secret_token, type: String
-
-  embedded_in :user
-end
-
-class MovesAccount
-  include Mongoid::Document
-
-  field :uid, type: String
-  field :access_token, type: String
-  field :refresh_token, type: String
-  field :expires_at, type: DateTime
-
-  embedded_in :user
-end
-
-class BikeRide
-  @@activityId = 90001
-  attr_accessor :duration, :distance, :startDateTime
-
-  def self.activityId
-    @@activityId
-  end
-
-  def initialize(startDateTime = Time.now, duration, distance)
-    @duration = duration
-    @distance = distance
-    @startDateTime = startDateTime
-  end
-
-  def startTime
-    @startDateTime.strftime("%H:%M")
-  end
-
-  def date
-    @startDateTime.strftime("%Y-%m-%d")
-  end
-
-end
-
+require File.expand_path('../app/models', __FILE__)
 
 class MovesApp < Sinatra::Base
   
@@ -85,9 +31,8 @@ class MovesApp < Sinatra::Base
   end
 
   use OmniAuth::Builder do
-    client_secrets = JSON.parse(File.read(CLIENT_SECRETS_FILE))
-    provider :moves, client_secrets['moves_client_id'], client_secrets['moves_client_secret']
-    provider :fitbit, client_secrets['fitbit_client_key'], client_secrets['fitbit_client_secret']
+    provider :moves, ENV['MOVES_CLIENT_ID'], ENV['MOVES_CLIENT_SECRET']
+    provider :fitbit, ENV['FITBIT_CLIENT_ID'], ENV['FITBIT_CLIENT_SECRET']
   end
 
   helpers do
@@ -266,12 +211,11 @@ class MovesApp < Sinatra::Base
       halt 404, "bad date"
     end
     
-    client_secrets = JSON.parse(File.read(CLIENT_SECRETS_FILE))
     user = User.find(session['user_id'])
 
     client = Fitgem::Client.new ({
-      :consumer_key => client_secrets['fitbit_client_key'],
-      :consumer_secret => client_secrets['fitbit_client_secret'],
+      :consumer_key => ENV['FITBIT_CLIENT_ID'],
+      :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
       :token => user.fitbit_account.access_token,
       :secret => user.fitbit_account.secret_token,
       :unit_system => Fitgem::ApiUnitSystem.METRIC
@@ -302,8 +246,8 @@ class MovesApp < Sinatra::Base
     user = User.find(session['user_id'])
 
     client = Fitgem::Client.new ({
-      :consumer_key => client_secrets['fitbit_client_key'],
-      :consumer_secret => client_secrets['fitbit_client_secret'],
+      :consumer_key => ENV['FITBIT_CLIENT_ID'],
+      :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
       :token => user.fitbit_account.access_token,
       :secret => user.fitbit_account.secret_token,
       :unit_system => Fitgem::ApiUnitSystem.METRIC

@@ -1,0 +1,13 @@
+
+Setup
+Register a moves app on the moves website
+Register a fitbit app on the fitbit website
+
+Lookup your client and secret keys for both services
+
+Rename client_secrets.sh.example to client_secrets.sh
+Add your client keys as required
+
+Run the below to expore environment variables for these
+$ source client_secrets.sh
+
