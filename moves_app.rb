@@ -240,7 +240,6 @@ class MovesApp < Sinatra::Base
   end
 
   post "/fitbit/log_activity" do
-    client_secrets = JSON.parse(File.read(CLIENT_SECRETS_FILE))
     user = User.find(session['user_id'])
 
     client = Fitgem::Client.new ({
