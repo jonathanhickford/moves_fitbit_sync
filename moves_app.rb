@@ -75,6 +75,16 @@ class MovesApp < Sinatra::Base
 
   end
 
+   before '*/summary/:date' do
+    begin
+      @date = Date.strptime(params['date'], '%Y-%m-%d')
+    rescue  
+      halt 404, "bad date"
+    end
+   end
+
+
+
 
   get '/' do
     redirect '/select_user' unless session['user_id']
@@ -162,17 +172,11 @@ class MovesApp < Sinatra::Base
   end
 
   
-  get '/moves_summary/?' do
-    redirect "moves_summary/#{Date.today.strftime('%Y-%m-%d')}"
+  get '/moves/summary/?' do
+    redirect "moves/summary/#{Date.today.strftime('%Y-%m-%d')}"
   end
 
-  get '/moves_summary/:date' do |date|
-    @date = Time.now
-    begin
-      @date = Date.strptime(date, '%Y-%m-%d')
-    rescue  
-      halt 404, "bad date"
-    end
+  get '/moves/summary/:date' do
 
     user = User.find(session['user_id'])
     moves_token = user.moves_account.access_token
@@ -199,17 +203,11 @@ class MovesApp < Sinatra::Base
     erb :summary_with_logging
   end
 
-  get '/fitbit_summary/?' do
-    redirect "fitbit_summary/#{Date.today.strftime('%Y-%m-%d')}"
+  get '/fitbit/summary/?' do
+    redirect "fitbit/summary/#{Date.today.strftime('%Y-%m-%d')}"
   end
   
-  get '/fitbit_summary/:date' do |date|
-    @date = Time.now
-    begin
-      @date = Date.strptime(date, '%Y-%m-%d')
-    rescue  
-      halt 404, "bad date"
-    end
+  get '/fitbit/summary/:date' do
     
     user = User.find(session['user_id'])
 
@@ -284,23 +282,55 @@ end
 __END__
 
 @@layout
+<!doctype html>
 <html>
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css">
+  <link rel="stylesheet" href="/css/side-menu.css">
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 </head>
 <body>
+  <div id="layout">
+  <!-- Menu toggle -->
+    <a href="#menu" id="menuLink" class="menu-link">
+        <!-- Hamburger icon -->
+        <span></span>
+    </a>
+
+    <div id="menu">
+        <div class="pure-menu">
+            <a class="pure-menu-heading" href="/">Sync</a>
+
+            <ul class="pure-menu-list">
+                <li class="pure-menu-item"><a href="/" class="pure-menu-link">Home</a></li>
+                <li class="pure-menu-item"><a href="/select_user" class="pure-menu-link">Select User</a></li>
+                <li class="pure-menu-item"><a href="/link_accounts" class="pure-menu-link">Link Accounts</a></li>
+                <li class="pure-menu-item"><a href="/moves/summary" class="pure-menu-link">Moves Summary</a></li>
+                <li class="pure-menu-item"><a href="/fitbit/summary" class="pure-menu-link">Fitbit Summary</a></li>
+            </ul>
+        </div>
+    </div>
+    <div id="main">
+
 <%= yield %>
+    </div>
+  </div>
+  <script src="/js/ui.js"></script>
 </body>
 </html>
 
 @@index
-<p>User name: <%=  @user.name  if @user%></p>
-<p>Fitbit UID: <%= @user.fitbit_account.uid if @user && @user.fitbit_account%></p>
-<p>Moves UID: <%= @user.moves_account.uid if @user && @user.moves_account%></p>
-<p><a href='/select_user'>Change user</a></p>
-<p><a href='/link_accounts'>Link Accounts</a></p>
-<p><a href='/moves_summary'>Todays moves activities</a></p>
-<p><a href='/fitbit_summary'>Todays fitbit activities</a></p>
+<div class="header">
+    <h1>Fitbit Moves Sync</h1>
+    <h2>What's going on</h2>
+</div>
+
+<div class="content">
+  <p>User name: <%=  @user.name  if @user%></p>
+  <p>Fitbit UID: <%= @user.fitbit_account.uid if @user && @user.fitbit_account%></p>
+  <p>Moves UID: <%= @user.moves_account.uid if @user && @user.moves_account%></p>
+</div>
 
 @@summary
 <h1>Summary:</h1>
