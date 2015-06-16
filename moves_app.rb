@@ -3,16 +3,16 @@ require 'bundler/setup'
 
 require 'sinatra'
 require "sinatra/reloader"
-require 'omniauth'
-
+require 'sinatra/flash'
 require 'omniauth'
 require 'omniauth-moves'
 require 'omniauth-fitbit'
 require 'moves'
 require 'fitgem'
 require 'json'
-
 require 'mongoid'
+require 'warden'
+require 'bcrypt'
 
 FITBIT_BIKE_RIDE_PARENT_ID = 90001
 
@@ -24,16 +24,65 @@ class MovesApp < Sinatra::Base
     set :sessions, true
     set :inline_templates, true
     Mongoid.load!("./mongoid.yml")
+    register Sinatra::Flash
   end
 
   configure :development do
     register Sinatra::Reloader
+    set :session_secret, "supersecret"
   end
 
   use OmniAuth::Builder do
     provider :moves, ENV['MOVES_CLIENT_ID'], ENV['MOVES_CLIENT_SECRET']
     provider :fitbit, ENV['FITBIT_CLIENT_ID'], ENV['FITBIT_CLIENT_SECRET']
   end
+
+  use Warden::Manager do |config|
+      # Tell Warden how to save our User info into a session.
+      # Sessions can only take strings, not Ruby code, we'll store
+      # the User's `id`
+      config.serialize_into_session{|user| user.id }
+      # Now tell Warden how to take what we've stored in the session
+      # and get a User from that information.
+      config.serialize_from_session{|id| User.find(id) }
+
+      config.scope_defaults :default,
+        # "strategies" is an array of named methods with which to
+        # attempt authentication. We have to define this later.
+        strategies: [:password],
+        # The action is a route to send the user to when
+        # warden.authenticate! returns a false answer. We'll show
+        # this route below.
+        action: '/unauthenticated'
+      # When a user tries to log in and cannot, this specifies the
+      # app to send the user to.
+      config.failure_app = self
+    end
+
+    Warden::Manager.before_failure do |env,opts|
+      env['REQUEST_METHOD'] = 'POST'
+    end
+
+    Warden::Strategies.add(:password) do
+    def valid?
+      params['user']['email'] && params['user']['password']
+    end
+
+    def authenticate!
+      user = User.find_by(email: params['user']['email'])
+
+      if user.nil?
+        fail!('The email and password combination does not exist')
+      elsif user.authenticate(params['user']['password'])
+        success!(user, 'Successfully logged in')
+      else
+        fail!('The email and password combination does not exist')
+      end
+    end
+  end
+
+
+
 
   helpers do
     def render_rides(rides)
@@ -73,75 +122,79 @@ class MovesApp < Sinatra::Base
       "
     end
 
-  end
-
-   before '*/summary/:date' do
-    begin
-      @date = Date.strptime(params['date'], '%Y-%m-%d')
-    rescue  
-      halt 404, "bad date"
+    def authenticated!
+      unless env['warden'].authenticated? 
+       flash[:error] = "You need to login"
+       redirect '/login' 
+     end
+      env['warden'].authenticate!
+      @user = env['warden'].user
     end
-   end
+
+    def login_logout_menu
+      if env['warden'].authenticated?
+        '<li class="pure-menu-item"><a href="/logout" class="pure-menu-link">Logout</a></li>'
+      else 
+        '<li class="pure-menu-item"><a href="/login" class="pure-menu-link">Login</a></li>'
+      end
+    end
 
 
-
+  end
 
   get '/' do
-    redirect '/select_user' unless session['user_id']
-
-    @user = User.find(session['user_id'])
-
+    authenticated!
+    
     erb :index
-  end
-
-  get '/select_user' do
-    erb "
-      <p>Select a user:</p>
-      <form action='/select_user' method='POST'>
-        <input type='hidden' name='_method' value='POST'/>
-        <ul>  
-          <% User.each do | user | %>
-            <li><input type='radio' name ='id' value='<%= user.id %>'/><%= user.name %></li>
-          <% end %>
-        </ul>
-        <input type='submit' name='submit' value='Select'/>
-      </form>
-    "
-  end
-
-  post '/select_user' do
-    puts params['id']
-    session[:user_id] = User.find(params['id'])
-    redirect '/'
   end
 
 
   get '/register' do
-    user = User.new
-    erb "
-    <form action='/user' method='POST'>
-        <input type='hidden' name='_method' value='POST'/>
-        <input type='text' name ='user[name]'/>
-        <input type='submit' name='submit' value='Save'/>
-      </form>
-    "
+    erb :register
   end
 
-  post '/user' do
+  post '/register' do
     user = User.new(params[:user])
     if user.save
+      env['warden'].authenticate!
       redirect '/'
     else
       "Error saving user"
     end
   end
 
+  get '/login' do
+    erb :login
+  end
+
+  post '/login' do
+    env['warden'].authenticate!
+    flash[:success] = env['warden'].message
+    redirect '/'
+  end
+
+  get '/logout' do
+    env['warden'].raw_session.inspect
+    env['warden'].logout
+    flash[:success] = 'Successfully logged out'
+    redirect '/login'
+  end
+
+  post '/unauthenticated' do
+    session[:return_to] = env['warden.options'][:attempted_path]
+    puts env['warden.options'][:attempted_path]
+    flash[:error] = env['warden'].message || "You must log in"
+    redirect '/login'
+  end
+
 
   get '/link_accounts' do
+    authenticated!
     erb :link_accounts
   end
 
   get '/auth/:provider/callback' do
+    authenticated!
     auth = request.env['omniauth.auth']
     
     if params[:provider] == "moves"
@@ -168,8 +221,51 @@ class MovesApp < Sinatra::Base
   end
   
   get '/auth/failure' do
+    authenticated!
     erb "<h1>Authentication Failed:</h1><h3>message:<h3><pre>#{params}</pre>"
   end
+
+
+   before '*/summary/:date' do
+    begin
+      @date = Date.strptime(params['date'], '%Y-%m-%d')
+    rescue  
+      halt 404, "bad date"
+    end
+   end
+
+   before '/moves/*' do
+    authenticated!
+
+    unless @user.moves_account && @user.moves_account.access_token
+      flash[:warn] = "You need to link your moves account to the application"
+      redirect '/link_accounts'
+    end
+
+    moves_token = @user.moves_account.access_token
+    @moves = Moves::Client.new(moves_token)
+   end
+
+   before '/fitbit/*' do
+    authenticated!
+
+    unless @user.fitbit_account && @user.fitbit_account.access_token && @user.fitbit_account.secret_token
+      flash[:warn] = "You need to link your fitbit account to the application"
+      redirect '/link_accounts'
+    end
+
+    @client = Fitgem::Client.new ({
+      :consumer_key => ENV['FITBIT_CLIENT_ID'],
+      :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
+      :token => @user.fitbit_account.access_token,
+      :secret => @user.fitbit_account.secret_token,
+      :unit_system => Fitgem::ApiUnitSystem.METRIC
+    })
+   
+    @access_token = @client.reconnect(@user.fitbit_account.access_token, @user.fitbit_account.secret_token)
+  end
+
+
 
   
   get '/moves/summary/?' do
@@ -177,12 +273,7 @@ class MovesApp < Sinatra::Base
   end
 
   get '/moves/summary/:date' do
-
-    user = User.find(session['user_id'])
-    moves_token = user.moves_account.access_token
-    moves = Moves::Client.new(moves_token)
-
-    @data = moves.daily_activities(@date)
+    @data = @moves.daily_activities(@date)
     @cycle_data = Array.new
 
     if @data.length > 0 && @data[0]['segments']
@@ -208,21 +299,7 @@ class MovesApp < Sinatra::Base
   end
   
   get '/fitbit/summary/:date' do
-    
-    user = User.find(session['user_id'])
-
-    client = Fitgem::Client.new ({
-      :consumer_key => ENV['FITBIT_CLIENT_ID'],
-      :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
-      :token => user.fitbit_account.access_token,
-      :secret => user.fitbit_account.secret_token,
-      :unit_system => Fitgem::ApiUnitSystem.METRIC
-    })
-   
-    
-    access_token = client.reconnect(user.fitbit_account.access_token, user.fitbit_account.secret_token)
-
-    @data = client.activities_on_date @date
+    @data = @client.activities_on_date @date
     @cycle_data = Array.new
 
     if @data['activities']
@@ -234,32 +311,11 @@ class MovesApp < Sinatra::Base
       end
     end
 
-    
-    
     erb :summary
   end
 
   post "/fitbit/log_activity" do
-    user = User.find(session['user_id'])
-
-    client = Fitgem::Client.new ({
-      :consumer_key => ENV['FITBIT_CLIENT_ID'],
-      :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
-      :token => user.fitbit_account.access_token,
-      :secret => user.fitbit_account.secret_token,
-      :unit_system => Fitgem::ApiUnitSystem.METRIC
-    })
-   
-    access_token = client.reconnect(user.fitbit_account.access_token, user.fitbit_account.secret_token)
-
-    # erb "
-    #   <%=  params['activity_id'] %>
-    #   <%=  params['duration'] %>
-    #   <%=  params['distance'] %>
-    #   <%=  params['start_time'] %>
-    #   <%=  params['start_date'] %>", :layout => !request.xhr?
-    
-    @response = client.log_activity(
+    @response = @client.log_activity(
       :activityId => params[:activity_id],
       :durationMillis => params[:duration],
       :distance => params[:distance],
@@ -303,7 +359,7 @@ __END__
 
             <ul class="pure-menu-list">
                 <li class="pure-menu-item"><a href="/" class="pure-menu-link">Home</a></li>
-                <li class="pure-menu-item"><a href="/select_user" class="pure-menu-link">Select User</a></li>
+                <%= login_logout_menu %>
                 <li class="pure-menu-item"><a href="/link_accounts" class="pure-menu-link">Link Accounts</a></li>
                 <li class="pure-menu-item"><a href="/moves/summary" class="pure-menu-link">Moves Summary</a></li>
                 <li class="pure-menu-item"><a href="/fitbit/summary" class="pure-menu-link">Fitbit Summary</a></li>
@@ -311,8 +367,8 @@ __END__
         </div>
     </div>
     <div id="main">
-
-<%= yield %>
+    <%= styled_flash %>
+    <%= yield %>
     </div>
   </div>
   <script src="/js/ui.js"></script>
@@ -322,7 +378,6 @@ __END__
 @@index
 <div class="header">
     <h1>Fitbit Moves Sync</h1>
-    <h2>What's going on</h2>
 </div>
 
 <div class="content">
@@ -332,27 +387,68 @@ __END__
 </div>
 
 @@summary
-<h1>Summary:</h1>
-<p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
-<h2>Rides:</h2>
-<%= render_rides(@cycle_data) %>
-<h2>Raw:</h2>
-<pre><%= JSON.pretty_generate(@data)%></pre>
+<div class="header">
+  <h1>Summary</h1>
+</div>
+<div class="content">
+  <p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
+  <h2>Rides:</h2>
+  <%= render_rides(@cycle_data) %>
+  <h2>Raw:</h2>
+  <pre><%= JSON.pretty_generate(@data)%></pre>
+</div>
 
 @@summary_with_logging
-<h1>Summary:</h1>
-<p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
-<h2>Rides:</h2>
-<%= render_rides_with_logging(@cycle_data) %>
-<h2>Raw:</h2>
-<pre><%= JSON.pretty_generate(@data)%></pre>
+<div class="header">
+  <h1>Summary</h1>
+</div>
+<div class="content">
+  <p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
+  <h2>Rides:</h2>
+  <%= render_rides_with_logging(@cycle_data) %>
+  <h2>Raw:</h2>
+  <pre><%= JSON.pretty_generate(@data)%></pre>
+</div>
 
 @@link_accounts
- <form action='/auth/moves' method='post'>
-  <input type='submit' value='Link with Moves'/>
-</form>
-<form action='/auth/fitbit' method='post'>
-  <input type='submit' value='Link with Fitbit'/>
-</form>
+<div class="header">
+  <h1>Link Accounts</h1>
+</div>
+<div class="content">
+   <form action='/auth/moves' method='post'>
+    <input type='submit' value='Link with Moves'/>
+  </form>
+  <form action='/auth/fitbit' method='post'>
+    <input type='submit' value='Link with Fitbit'/>
+  </form>
+</div>
+
+@@register
+<div class="header">
+  <h1>Register</h1>
+</div>
+<div class="content">
+  <form action='/register' method='POST'>
+    <input type='hidden' name='_method' value='POST'/>
+    Name: <input type='text' name ='user[name]'/>
+    Email: <input type='text' name ='user[email]'/>
+    Password: <input type='password' name ='user[password]'/>
+    <input type='submit' name='submit' value='Save'/>
+  </form>
+</div>
+
+@@login
+<div class="header">
+  <h1>Login</h1>
+</div>
+<div class="content">
+  <form action='/login' method='POST'>
+    <input type='hidden' name='_method' value='POST'/>
+    Email: <input type='text' name ='user[email]'/>
+    Password: <input type='password' name ='user[password]'/>
+    <input type='submit' name='submit' value='Login'/>
+  </form>
+  <p><a href='/register'>Register a new account</a></p>
+</div>
 
 

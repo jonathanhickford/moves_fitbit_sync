@@ -1,10 +1,36 @@
 class User
   include Mongoid::Document
+  include BCrypt
+
  
   field :name, type: String
+  field :email, type: String
+  field :password_hash, type: String
+  
+  #attr_protected :password_hash
+  attr_accessor :password
+  
 
   embeds_one :moves_account
   embeds_one :fitbit_account
+
+  before_save :encrypt_password
+
+  def authenticate(attempted_password)
+    user_pass = Password.new(self.password_hash)
+    if user_pass == attempted_password
+      true
+    else
+      false
+    end
+  end
+
+  protected
+
+  def encrypt_password
+    self.password_hash = Password.create(@password)
+  end
+
 end
 
 class FitbitAccount
