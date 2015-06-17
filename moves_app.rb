@@ -38,24 +38,12 @@ class MovesApp < Sinatra::Base
   end
 
   use Warden::Manager do |config|
-      # Tell Warden how to save our User info into a session.
-      # Sessions can only take strings, not Ruby code, we'll store
-      # the User's `id`
       config.serialize_into_session{|user| user.id }
-      # Now tell Warden how to take what we've stored in the session
-      # and get a User from that information.
       config.serialize_from_session{|id| User.find(id) }
 
       config.scope_defaults :default,
-        # "strategies" is an array of named methods with which to
-        # attempt authentication. We have to define this later.
         strategies: [:password],
-        # The action is a route to send the user to when
-        # warden.authenticate! returns a false answer. We'll show
-        # this route below.
         action: '/unauthenticated'
-      # When a user tries to log in and cannot, this specifies the
-      # app to send the user to.
       config.failure_app = self
     end
 
@@ -85,34 +73,37 @@ class MovesApp < Sinatra::Base
 
 
   helpers do
-    def render_rides(rides)
-     @rides = rides
-     erb "
-     <% @rides.each do |ride| %>
-      <p>
-        <span>Date: <%= ride.date %> </span>
-        <span>Start Time: <%= ride.startTime %> - </span>
-        <span>Duration: <%= ride.duration %> ms</span>
-        <span>Distance: <%= ride.distance %> km</span>
-      </p>
-    <% end %>
-    "
-    end
-
-    def render_rides_with_logging(rides)
-     @rides = rides
-     erb "
-     <% @rides.each do |ride| %>
-      <p>
-        <span>Date: <%= ride.date %> </span>
-        <span>Start Time: <%= ride.startTime %> - </span>
-        <span>Duration: <%= ride.duration %> ms</span>
-        <span>Distance: <%= ride.distance %> km</span>
-        <span><%= log_ride_to_fitbit_link(ride) %></span
-
-      </p>
-    <% end %>
-    "
+    def render_rides(rides, logging=false)
+      @rides = rides
+      @logging = logging
+      if @rides.length > 0
+        erb "
+        <table class='pure-table pure-table-bordered'>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Start Time</th>
+              <th>Duration (ms)</th>
+              <th>Distance (km)</th>
+              <% if @logging %><th>Log</th><% end %>
+            </tr>
+          </thead>
+          <tbody>
+            <% @rides.each do |ride| %>
+              <tr>
+                <td><%= ride.date %> </td>
+                <td><%= ride.startTime %></td>
+                <td><%= ride.duration %></td>
+                <td><%= ride.distance %></td>
+                <% if @logging %><td><%= log_ride_to_fitbit_link(ride) %></td><% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>     
+        "
+      else
+        erb "<p>No rides logged</p>"
+      end
     end
 
     def log_ride_to_fitbit_link(ride)
@@ -150,16 +141,28 @@ class MovesApp < Sinatra::Base
 
 
   get '/register' do
+    @user = User.new(params[:user])
     erb :register
   end
 
   post '/register' do
-    user = User.new(params[:user])
-    if user.save
+    @user = User.new(params[:user])
+    if @user.save
       env['warden'].authenticate!
+      flash[:success] = 'Welcome. You are logged in'
       redirect '/'
     else
-      "Error saving user"
+      error_message = ""
+      p @user.errors.messages
+      @user.errors.messages.each do |field, messages|
+        error_message << "<ul>"
+        error_message << "<li>#{field.capitalize}:<ul>"
+        messages.each {|message| error_message << "<li>#{message}</li>"}
+        error_message << "</ul></li>"
+        error_message << "</ul>"
+      end
+      flash.now[:error] = error_message
+      erb :register
     end
   end
 
@@ -187,11 +190,6 @@ class MovesApp < Sinatra::Base
     redirect '/login'
   end
 
-
-  get '/link_accounts' do
-    authenticated!
-    erb :link_accounts
-  end
 
   get '/auth/:provider/callback' do
     authenticated!
@@ -239,7 +237,7 @@ class MovesApp < Sinatra::Base
 
     unless @user.moves_account && @user.moves_account.access_token
       flash[:warn] = "You need to link your moves account to the application"
-      redirect '/link_accounts'
+      redirect '/'
     end
 
     moves_token = @user.moves_account.access_token
@@ -251,10 +249,10 @@ class MovesApp < Sinatra::Base
 
     unless @user.fitbit_account && @user.fitbit_account.access_token && @user.fitbit_account.secret_token
       flash[:warn] = "You need to link your fitbit account to the application"
-      redirect '/link_accounts'
+      redirect '/'
     end
 
-    @client = Fitgem::Client.new ({
+    @fitbit = Fitgem::Client.new ({
       :consumer_key => ENV['FITBIT_CLIENT_ID'],
       :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
       :token => @user.fitbit_account.access_token,
@@ -262,7 +260,7 @@ class MovesApp < Sinatra::Base
       :unit_system => Fitgem::ApiUnitSystem.METRIC
     })
    
-    @access_token = @client.reconnect(@user.fitbit_account.access_token, @user.fitbit_account.secret_token)
+    @access_token = @fitbit.reconnect(@user.fitbit_account.access_token, @user.fitbit_account.secret_token)
   end
 
 
@@ -299,7 +297,7 @@ class MovesApp < Sinatra::Base
   end
   
   get '/fitbit/summary/:date' do
-    @data = @client.activities_on_date @date
+    @data = @fitbit.activities_on_date @date
     @cycle_data = Array.new
 
     if @data['activities']
@@ -355,12 +353,11 @@ __END__
 
     <div id="menu">
         <div class="pure-menu">
-            <a class="pure-menu-heading" href="/">Sync</a>
+            <a class="pure-menu-heading" href="/">Fitbit Sync</a>
 
             <ul class="pure-menu-list">
                 <li class="pure-menu-item"><a href="/" class="pure-menu-link">Home</a></li>
                 <%= login_logout_menu %>
-                <li class="pure-menu-item"><a href="/link_accounts" class="pure-menu-link">Link Accounts</a></li>
                 <li class="pure-menu-item"><a href="/moves/summary" class="pure-menu-link">Moves Summary</a></li>
                 <li class="pure-menu-item"><a href="/fitbit/summary" class="pure-menu-link">Fitbit Summary</a></li>
             </ul>
@@ -381,9 +378,28 @@ __END__
 </div>
 
 <div class="content">
-  <p>User name: <%=  @user.name  if @user%></p>
-  <p>Fitbit UID: <%= @user.fitbit_account.uid if @user && @user.fitbit_account%></p>
-  <p>Moves UID: <%= @user.moves_account.uid if @user && @user.moves_account%></p>
+  <p>User name: <%=  @user.name %></p>
+  
+  <% if @user.fitbit_account%>
+    <p>You have successfully linked your fitbit account to the application</p>
+    <p>Fitbit UID: <%= @user.fitbit_account.uid %></p>
+  <% else %>
+    <p>You haven't linked your moves account to the application</p>
+    <form action='/auth/moves' method='post'>
+      <input type='submit' value='Link with Moves'/>
+    </form>
+  <% end %>
+
+  <% if @user.moves_account%>
+    <p>You have successfully linked your moves account to the application</p>
+    <p>Moves UID: <%= @user.moves_account.uid %></p>
+  <% else %>
+    <p>You haven't linked your fitbit account to the application</p>
+    <form action='/auth/fitbit' method='post'>
+      <input type='submit' value='Link with Fitbit'/>
+    </form>
+  <% end %>
+  
 </div>
 
 @@summary
@@ -393,9 +409,11 @@ __END__
 <div class="content">
   <p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
   <h2>Rides:</h2>
-  <%= render_rides(@cycle_data) %>
-  <h2>Raw:</h2>
-  <pre><%= JSON.pretty_generate(@data)%></pre>
+  <%= render_rides(@cycle_data, false) %>
+  <% if params['debug'] %>
+    <h2>Raw:</h2>
+    <pre><%= JSON.pretty_generate(@data)%></pre>
+  <% end %>
 </div>
 
 @@summary_with_logging
@@ -405,35 +423,28 @@ __END__
 <div class="content">
   <p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
   <h2>Rides:</h2>
-  <%= render_rides_with_logging(@cycle_data) %>
-  <h2>Raw:</h2>
-  <pre><%= JSON.pretty_generate(@data)%></pre>
+  <%= render_rides(@cycle_data, true) %>
+  <% if params['debug'] %>
+    <h2>Raw:</h2>
+    <pre><%= JSON.pretty_generate(@data)%></pre>
+  <% end %>
 </div>
 
-@@link_accounts
-<div class="header">
-  <h1>Link Accounts</h1>
-</div>
-<div class="content">
-   <form action='/auth/moves' method='post'>
-    <input type='submit' value='Link with Moves'/>
-  </form>
-  <form action='/auth/fitbit' method='post'>
-    <input type='submit' value='Link with Fitbit'/>
-  </form>
-</div>
 
 @@register
 <div class="header">
   <h1>Register</h1>
 </div>
-<div class="content">
-  <form action='/register' method='POST'>
-    <input type='hidden' name='_method' value='POST'/>
-    Name: <input type='text' name ='user[name]'/>
-    Email: <input type='text' name ='user[email]'/>
-    Password: <input type='password' name ='user[password]'/>
-    <input type='submit' name='submit' value='Save'/>
+<div class="content pure-g">
+  <form class="pure-form pure-u-1" action='/register' method='POST' >
+    <fieldset class="pure-group">
+      <input type='hidden' name='_method' value='POST'/>
+      <input type='text' class="pure-u-1" name ='user[name]' value = '<%= @user.name %>' placeholder ='Name'/>
+      <input type='text' class="pure-u-1" name ='user[email]' value = '<%= @user.email %>' placeholder='Email'/>
+      <input type='password' class="pure-u-1" name ='user[password]' placeholder='Password'/>
+    </fieldset>
+    <input type='submit' name='submit' value='Register' class='pure-u-1 pure-button pure-button-primary'/>
+
   </form>
 </div>
 
@@ -441,14 +452,16 @@ __END__
 <div class="header">
   <h1>Login</h1>
 </div>
-<div class="content">
-  <form action='/login' method='POST'>
-    <input type='hidden' name='_method' value='POST'/>
-    Email: <input type='text' name ='user[email]'/>
-    Password: <input type='password' name ='user[password]'/>
-    <input type='submit' name='submit' value='Login'/>
+<div class="content pure-g">
+  <form class="pure-form pure-u-1" action='/login' method='POST'>
+    <fieldset class="pure-group">
+      <input type='hidden' name='_method' value='POST'/>
+      <input type='text' class="pure-u-1" name ='user[email]' placeholder='Email'/>
+      <input type='password' class="pure-u-1" name ='user[password]' placeholder='Password'/>
+      <input type='submit' name='submit' value='Login' class='pure-u-1 pure-button pure-button-primary'/>
+      </fieldset>
   </form>
-  <p><a href='/register'>Register a new account</a></p>
+  <p class="pure-form pure-u-1" ><a href='/register'>Register a new account</a></p>
 </div>
 
 

@@ -6,6 +6,12 @@ class User
   field :name, type: String
   field :email, type: String
   field :password_hash, type: String
+
+  validates_presence_of :name, :email, message: 'Field is required'
+  validates_uniqueness_of :email, :allow_blank => false
+  validates_length_of :password, minimum: 8, too_short: 'Password must be at least 8 characters'
+  validates_format_of :email, with: /\A([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\z/i, message: 'Email address must be valid'
+
   
   #attr_protected :password_hash
   attr_accessor :password
