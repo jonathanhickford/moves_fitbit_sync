@@ -16,14 +16,15 @@ require 'bcrypt'
 
 FITBIT_BIKE_RIDE_PARENT_ID = 90001
 
-require File.expand_path('../app/models', __FILE__)
+require File.expand_path('../models', __FILE__)
+require File.expand_path('../views', __FILE__)
 
 class MovesApp < Sinatra::Base
   
   configure do
     set :sessions, true
     set :inline_templates, true
-    Mongoid.load!("./mongoid.yml")
+    Mongoid.load!(File.expand_path('../mongoid.yml', __FILE__))
     register Sinatra::Flash
   end
 
@@ -313,7 +314,7 @@ class MovesApp < Sinatra::Base
   end
 
   post "/fitbit/log_activity" do
-    @response = @client.log_activity(
+    @response = @fitbit.log_activity(
       :activityId => params[:activity_id],
       :durationMillis => params[:duration],
       :distance => params[:distance],
@@ -463,5 +464,8 @@ __END__
   </form>
   <p class="pure-form pure-u-1" ><a href='/register'>Register a new account</a></p>
 </div>
+
+
+
 
 
