@@ -17,7 +17,6 @@ require 'bcrypt'
 FITBIT_BIKE_RIDE_PARENT_ID = 90001
 
 require File.expand_path('../models', __FILE__)
-require File.expand_path('../views', __FILE__)
 
 class MovesApp < Sinatra::Base
   
