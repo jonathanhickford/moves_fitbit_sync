@@ -1,0 +1,14 @@
+.header
+  %h1 Summary
+.content
+  %p
+    %a{:href => @date - 1} Previous
+    \-
+    %a{:href => @date + 1} Next
+    \-
+    %a{:href => "."} Today
+  %h2 Rides:
+  = render_rides(@cycle_data, false)
+  - if params['debug']
+    %h2 Raw:
+    %pre= JSON.pretty_generate(@data)

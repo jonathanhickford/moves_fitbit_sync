@@ -1,0 +1,10 @@
+.header
+  %h1 Register
+.content.pure-g
+  %form.pure-form.pure-u-1{:action => "/register", :method => "POST"}
+    %fieldset.pure-group
+      %input{:name => "_method", :type => "hidden", :value => "POST"}
+      %input.pure-u-1{:name => "user[name]", :placeholder => "Name", :type => "text", :value => @user.name}
+      %input.pure-u-1{:name => "user[email]", :placeholder => "Email", :type => "text", :value => @user.email}
+      %input.pure-u-1{:name => "user[password]", :placeholder => "Password", :type => "password"}
+    %input.pure-u-1.pure-button.pure-button-primary{:name => "submit", :type => "submit", :value => "Register"}

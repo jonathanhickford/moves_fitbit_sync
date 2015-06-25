@@ -1,0 +1,11 @@
+.header
+  %h1 Login
+.content.pure-g
+  %form.pure-form.pure-u-1{:action => "/login", :method => "POST"}
+    %fieldset.pure-group
+      %input{:name => "_method", :type => "hidden", :value => "POST"}
+      %input.pure-u-1{:name => "user[email]", :placeholder => "Email", :type => "text"}
+      %input.pure-u-1{:name => "user[password]", :placeholder => "Password", :type => "password"}
+      %input.pure-u-1.pure-button.pure-button-primary{:name => "submit", :type => "submit", :value => "Login"}
+  %p.pure-form.pure-u-1
+    %a{:href => "/register"} Register a new account

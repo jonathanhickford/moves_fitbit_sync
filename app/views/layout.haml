@@ -1,0 +1,26 @@
+!!!
+%html
+  %head
+    %meta{:content => "width=device-width, initial-scale=1", :name => "viewport"}
+    %link{:href => "http://yui.yahooapis.com/pure/0.6.0/pure-min.css", :rel => "stylesheet"}
+    %link{:href => "/css/side-menu.css", :rel => "stylesheet"}
+    %script{:src => "https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"}
+  %body
+    #layout
+      %a#menuLink.menu-link{:href => "#menu"}
+        %span
+      #menu
+        .pure-menu
+          %a.pure-menu-heading{:href => "/"} Fitbit Sync
+          %ul.pure-menu-list
+            %li.pure-menu-item
+              %a.pure-menu-link{:href => "/"} Home
+            = login_logout_menu
+            %li.pure-menu-item
+              %a.pure-menu-link{:href => "/moves/summary"} Moves Summary
+            %li.pure-menu-item
+              %a.pure-menu-link{:href => "/fitbit/summary"} Fitbit Summary
+      #main
+        = styled_flash
+        = yield
+    %script{:src => "/js/ui.js"}

@@ -13,6 +13,7 @@ require 'json'
 require 'mongoid'
 require 'warden'
 require 'bcrypt'
+require 'haml'
 
 FITBIT_BIKE_RIDE_PARENT_ID = 90001
 
@@ -136,13 +137,13 @@ class MovesApp < Sinatra::Base
   get '/' do
     authenticated!
     
-    erb :index
+    haml :index
   end
 
 
   get '/register' do
     @user = User.new(params[:user])
-    erb :register
+    haml :register
   end
 
   post '/register' do
@@ -162,12 +163,12 @@ class MovesApp < Sinatra::Base
         error_message << "</ul>"
       end
       flash.now[:error] = error_message
-      erb :register
+      haml :register
     end
   end
 
   get '/login' do
-    erb :login
+    haml :login
   end
 
   post '/login' do
@@ -224,6 +225,8 @@ class MovesApp < Sinatra::Base
   end
 
 
+
+
    before '*/summary/:date' do
     begin
       @date = Date.strptime(params['date'], '%Y-%m-%d')
@@ -272,24 +275,9 @@ class MovesApp < Sinatra::Base
 
   get '/moves/summary/:date' do
     @data = @moves.daily_activities(@date)
-    @cycle_data = Array.new
-
-    if @data.length > 0 && @data[0]['segments']
-      segments = @data[0]['segments'].select { |s| s['type'] =='move' }
-
-      segments.each do | s |
-        s['activities'].each do | a |
-          if a['group'] == 'cycling'
-            r = BikeRide.new(DateTime.strptime(a['startTime'],"%Y%m%dT%H%M%S%z"), a['duration'].to_i * 1000, a['distance'] / 1000)
-            @cycle_data.push r
-          end
-        end
-      end
-
-    end
-
+    @cycle_data = BikeRide.rides_from_moves(@data)
     
-    erb :summary_with_logging
+    haml :summary_with_logging
   end
 
   get '/fitbit/summary/?' do
@@ -298,18 +286,9 @@ class MovesApp < Sinatra::Base
   
   get '/fitbit/summary/:date' do
     @data = @fitbit.activities_on_date @date
-    @cycle_data = Array.new
+    @cycle_data = BikeRide.rides_from_fitbit(@data)
 
-    if @data['activities']
-      @data['activities'].each do | a |
-        if a['name'] == 'Bike'
-          r = BikeRide.new(DateTime.strptime(a['startDate'] + ' ' + a['startTime'],"%Y-%m-%d %H:%M"), a['duration'], a['distance'])
-          @cycle_data.push r 
-        end
-      end
-    end
-
-    erb :summary
+    haml :summary
   end
 
   post "/fitbit/log_activity" do
@@ -332,137 +311,6 @@ class MovesApp < Sinatra::Base
 
 end
 
-__END__
-
-@@layout
-<!doctype html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css">
-  <link rel="stylesheet" href="/css/side-menu.css">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
-</head>
-<body>
-  <div id="layout">
-  <!-- Menu toggle -->
-    <a href="#menu" id="menuLink" class="menu-link">
-        <!-- Hamburger icon -->
-        <span></span>
-    </a>
-
-    <div id="menu">
-        <div class="pure-menu">
-            <a class="pure-menu-heading" href="/">Fitbit Sync</a>
-
-            <ul class="pure-menu-list">
-                <li class="pure-menu-item"><a href="/" class="pure-menu-link">Home</a></li>
-                <%= login_logout_menu %>
-                <li class="pure-menu-item"><a href="/moves/summary" class="pure-menu-link">Moves Summary</a></li>
-                <li class="pure-menu-item"><a href="/fitbit/summary" class="pure-menu-link">Fitbit Summary</a></li>
-            </ul>
-        </div>
-    </div>
-    <div id="main">
-    <%= styled_flash %>
-    <%= yield %>
-    </div>
-  </div>
-  <script src="/js/ui.js"></script>
-</body>
-</html>
-
-@@index
-<div class="header">
-    <h1>Fitbit Moves Sync</h1>
-</div>
-
-<div class="content">
-  <p>User name: <%=  @user.name %></p>
-  
-  <% if @user.fitbit_account%>
-    <p>You have successfully linked your fitbit account to the application</p>
-    <p>Fitbit UID: <%= @user.fitbit_account.uid %></p>
-  <% else %>
-    <p>You haven't linked your moves account to the application</p>
-    <form action='/auth/moves' method='post'>
-      <input type='submit' value='Link with Moves'/>
-    </form>
-  <% end %>
-
-  <% if @user.moves_account%>
-    <p>You have successfully linked your moves account to the application</p>
-    <p>Moves UID: <%= @user.moves_account.uid %></p>
-  <% else %>
-    <p>You haven't linked your fitbit account to the application</p>
-    <form action='/auth/fitbit' method='post'>
-      <input type='submit' value='Link with Fitbit'/>
-    </form>
-  <% end %>
-  
-</div>
-
-@@summary
-<div class="header">
-  <h1>Summary</h1>
-</div>
-<div class="content">
-  <p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
-  <h2>Rides:</h2>
-  <%= render_rides(@cycle_data, false) %>
-  <% if params['debug'] %>
-    <h2>Raw:</h2>
-    <pre><%= JSON.pretty_generate(@data)%></pre>
-  <% end %>
-</div>
-
-@@summary_with_logging
-<div class="header">
-  <h1>Summary</h1>
-</div>
-<div class="content">
-  <p><a href='<%= @date - 1 %>'>Previous</a> - <a href='<%= @date + 1%>'>Next</a> - <a href='.'>Today</a></p>
-  <h2>Rides:</h2>
-  <%= render_rides(@cycle_data, true) %>
-  <% if params['debug'] %>
-    <h2>Raw:</h2>
-    <pre><%= JSON.pretty_generate(@data)%></pre>
-  <% end %>
-</div>
-
-
-@@register
-<div class="header">
-  <h1>Register</h1>
-</div>
-<div class="content pure-g">
-  <form class="pure-form pure-u-1" action='/register' method='POST' >
-    <fieldset class="pure-group">
-      <input type='hidden' name='_method' value='POST'/>
-      <input type='text' class="pure-u-1" name ='user[name]' value = '<%= @user.name %>' placeholder ='Name'/>
-      <input type='text' class="pure-u-1" name ='user[email]' value = '<%= @user.email %>' placeholder='Email'/>
-      <input type='password' class="pure-u-1" name ='user[password]' placeholder='Password'/>
-    </fieldset>
-    <input type='submit' name='submit' value='Register' class='pure-u-1 pure-button pure-button-primary'/>
-
-  </form>
-</div>
-
-@@login
-<div class="header">
-  <h1>Login</h1>
-</div>
-<div class="content pure-g">
-  <form class="pure-form pure-u-1" action='/login' method='POST'>
-    <fieldset class="pure-group">
-      <input type='hidden' name='_method' value='POST'/>
-      <input type='text' class="pure-u-1" name ='user[email]' placeholder='Email'/>
-      <input type='password' class="pure-u-1" name ='user[password]' placeholder='Password'/>
-      <input type='submit' name='submit' value='Login' class='pure-u-1 pure-button pure-button-primary'/>
-      </fieldset>
-  </form>
-  <p class="pure-form pure-u-1" ><a href='/register'>Register a new account</a></p>
-</div>
 
 
 

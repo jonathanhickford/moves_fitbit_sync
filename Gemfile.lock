@@ -38,6 +38,8 @@ GEM
       multipart-post (>= 1.2, < 3)
     fitgem (0.12.1)
       oauth
+    haml (4.0.6)
+      tilt
     hashie (3.4.2)
     http-cookie (1.0.2)
       domain_name (~> 0.5)
@@ -117,6 +119,7 @@ PLATFORMS
 DEPENDENCIES
   bcrypt
   fitgem
+  haml
   mongoid
   moves
   omniauth

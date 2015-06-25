@@ -82,4 +82,36 @@ class BikeRide
     @startDateTime.strftime("%Y-%m-%d")
   end
 
+  def self.rides_from_fitbit(data)
+    cycle_data = Array.new
+    if data['activities']
+      data['activities'].each do | a |
+        if a['name'] == 'Bike'
+          r = BikeRide.new(DateTime.strptime(a['startDate'] + ' ' + a['startTime'],"%Y-%m-%d %H:%M"), a['duration'], a['distance'])
+          cycle_data.push r 
+        end
+      end
+    end
+    cycle_data
+  end
+
+  def self.rides_from_moves(data)
+    cycle_data = Array.new
+    if data.length > 0 && data[0]['segments']
+      segments = data[0]['segments'].select { |s| s['type'] =='move' }
+      segments.each do | s |
+        s['activities'].each do | a |
+          if a['group'] == 'cycling'
+            r = BikeRide.new(DateTime.strptime(a['startTime'],"%Y%m%dT%H%M%S%z"), a['duration'].to_i * 1000, a['distance'] / 1000)
+            cycle_data.push r
+          end
+        end
+      end
+    end
+    cycle_data
+  end
+
+
+
+
 end
