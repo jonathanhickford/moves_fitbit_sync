@@ -1,0 +1,23 @@
+development:
+  sessions:
+    default:
+      uri:  <%= ENV['MONGOLAB_URI'] %>
+      options: 
+        max_retries: 30
+        retry_interval: 1
+        timeout: 15
+        refresh_interval: 10
+  options:
+    raise_not_found_error: false
+
+development:
+  sessions:
+    default:
+      uri:  <%= ENV['MONGOLAB_URI'] %>
+      options: 
+        max_retries: 30
+        retry_interval: 1
+        timeout: 15
+        refresh_interval: 10
+  options:
+    raise_not_found_error: false

@@ -1,21 +1,9 @@
 require 'rubygems'
 require 'bundler/setup'
 
-require 'sinatra'
-require "sinatra/reloader"
-require 'sinatra/flash'
-require 'omniauth'
-require 'omniauth-moves'
-require 'omniauth-fitbit'
-require 'moves'
-require 'fitgem'
-require 'json'
-require 'mongoid'
-require 'warden'
-require 'bcrypt'
-require 'haml'
+Bundler.require
 
-FITBIT_BIKE_RIDE_PARENT_ID = 90001
+FITBIT_BIKE_RIDE_PARENT_ID = ENV['FITBIT_BIKE_RIDE_PARENT_ID']
 
 require File.expand_path('../models', __FILE__)
 
@@ -24,7 +12,7 @@ class MovesApp < Sinatra::Base
   configure do
     set :sessions, true
     set :inline_templates, true
-    Mongoid.load!(File.expand_path('../mongoid.yml', __FILE__))
+    Mongoid.load!(File.expand_path('../../mongoid.yml', __FILE__))
     register Sinatra::Flash
   end
 
