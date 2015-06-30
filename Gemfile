@@ -11,5 +11,7 @@ gem "mongoid"
 gem "bcrypt"
 gem "warden"
 gem "haml"
+gem "rspec"
+gem "json_spec"
 
 

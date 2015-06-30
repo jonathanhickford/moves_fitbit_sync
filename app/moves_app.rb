@@ -1,5 +1,5 @@
 require 'rubygems'
-require 'bundler/setup'
+require 'bundler'
 
 Bundler.require
 
@@ -74,17 +74,27 @@ class MovesApp < Sinatra::Base
               <th>Start Time</th>
               <th>Duration (ms)</th>
               <th>Distance (km)</th>
+              <th>Source</th>
               <% if @logging %><th>Log</th><% end %>
             </tr>
           </thead>
           <tbody>
-            <% @rides.each do |ride| %>
+            <% @rides.each_value do |ride| %>
               <tr>
                 <td><%= ride.date %> </td>
                 <td><%= ride.startTime %></td>
                 <td><%= ride.duration %></td>
                 <td><%= ride.distance %></td>
-                <% if @logging %><td><%= log_ride_to_fitbit_link(ride) %></td><% end %>
+                <td><%= ride.source %></td>
+                <% if @logging %>
+                  <% if ride.source == :moves %>
+                    <td><%= log_ride_to_fitbit_link(ride) %></td>
+                  <% elsif ride.source == :fitbit %>
+                    <td>N/A</td>
+                  <% else %>
+                    <td>Logged</td>
+                  <% end %>
+                <% end %>
               </tr>
             <% end %>
           </tbody>
@@ -117,6 +127,34 @@ class MovesApp < Sinatra::Base
       else 
         '<li class="pure-menu-item"><a href="/login" class="pure-menu-link">Login</a></li>'
       end
+    end
+
+    def fitbit_client
+      unless @user.fitbit_account && @user.fitbit_account.access_token && @user.fitbit_account.secret_token
+        flash[:warn] = "You need to link your fitbit account to the application"
+        redirect '/'
+      end
+
+      fitbit = Fitgem::Client.new ({
+        :consumer_key => ENV['FITBIT_CLIENT_ID'],
+        :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
+        :token => @user.fitbit_account.access_token,
+        :secret => @user.fitbit_account.secret_token,
+        :unit_system => Fitgem::ApiUnitSystem.METRIC
+      })
+     
+      fitbit.reconnect(@user.fitbit_account.access_token, @user.fitbit_account.secret_token)
+      fitbit
+    end
+
+    def moves_client
+      unless @user.moves_account && @user.moves_account.access_token
+        flash[:warn] = "You need to link your moves account to the application"
+        redirect '/'
+      end
+
+      moves_token = @user.moves_account.access_token
+      moves = Moves::Client.new(moves_token)
     end
 
 
@@ -214,7 +252,6 @@ class MovesApp < Sinatra::Base
 
 
 
-
    before '*/summary/:date' do
     begin
       @date = Date.strptime(params['date'], '%Y-%m-%d')
@@ -223,38 +260,21 @@ class MovesApp < Sinatra::Base
     end
    end
 
-   before '/moves/*' do
+  before '/moves/*' do
     authenticated!
-
-    unless @user.moves_account && @user.moves_account.access_token
-      flash[:warn] = "You need to link your moves account to the application"
-      redirect '/'
-    end
-
-    moves_token = @user.moves_account.access_token
-    @moves = Moves::Client.new(moves_token)
+    @moves = moves_client
    end
 
-   before '/fitbit/*' do
+  before '/fitbit/*' do
     authenticated!
-
-    unless @user.fitbit_account && @user.fitbit_account.access_token && @user.fitbit_account.secret_token
-      flash[:warn] = "You need to link your fitbit account to the application"
-      redirect '/'
-    end
-
-    @fitbit = Fitgem::Client.new ({
-      :consumer_key => ENV['FITBIT_CLIENT_ID'],
-      :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
-      :token => @user.fitbit_account.access_token,
-      :secret => @user.fitbit_account.secret_token,
-      :unit_system => Fitgem::ApiUnitSystem.METRIC
-    })
-   
-    @access_token = @fitbit.reconnect(@user.fitbit_account.access_token, @user.fitbit_account.secret_token)
+    @fitbit = fitbit_client
   end
 
-
+  before '/moves_fitbit/*' do
+    authenticated!
+    @moves = moves_client
+    @fitbit = fitbit_client
+  end
 
   
   get '/moves/summary/?' do
@@ -278,6 +298,26 @@ class MovesApp < Sinatra::Base
 
     haml :summary
   end
+
+  get '/moves_fitbit/summary/?' do
+    redirect "moves_fitbit/summary/#{Date.today.strftime('%Y-%m-%d')}"
+  end
+
+  get '/moves_fitbit/summary/:date' do
+    fitbit_data = @fitbit.activities_on_date @date
+    fitbit_rides = BikeRide.rides_from_fitbit(fitbit_data)
+    
+    moves_data = @moves.daily_activities(@date)
+    moves_rides = BikeRide.rides_from_moves(moves_data)
+    
+    @data = {:fitbit_data => fitbit_data, :moves_data => moves_data }
+    @cycle_data = BikeRide.merge_rides(fitbit_rides, moves_rides)
+    
+    haml :summary_with_logging
+  end
+
+
+
 
   post "/fitbit/log_activity" do
     @response = @fitbit.log_activity(
