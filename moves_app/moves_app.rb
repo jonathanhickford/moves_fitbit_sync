@@ -12,7 +12,7 @@ class MovesApp < Sinatra::Base
   configure do
     set :sessions, true
     set :inline_templates, true
-    Mongoid.load!(File.expand_path('../../mongoid.yml', __FILE__))
+    Mongoid.load!(File.expand_path('../../config/mongoid.yml', __FILE__))
     register Sinatra::Flash
   end
 

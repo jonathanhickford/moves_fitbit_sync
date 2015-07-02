@@ -1,4 +1,5 @@
 source 'https://rubygems.org'
+ruby '2.0.0'
 gem "moves"
 gem 'fitgem'
 gem "omniauth"
@@ -13,5 +14,6 @@ gem "warden"
 gem "haml"
 gem "rspec"
 gem "json_spec"
+gem "puma"
 
 
