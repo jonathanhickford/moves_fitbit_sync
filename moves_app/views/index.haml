@@ -9,15 +9,15 @@
     %p You have successfully linked your fitbit account to the application
     %p Fitbit UID: #{@user.fitbit_account.uid}
   - else
-    %p You haven't linked your moves account to the application
-    %form{ :action => '/auth/moves', :method => 'post' }
-      %input{ :type => 'submit', :value => 'Link with Moves'}
+    %p You haven't linked your fitbit account to the application
+    %form{ :action => '/auth/fitbit', :method => 'post' }
+      %input{ :type => 'submit', :value => 'Link with Fitbit'}
 
 
   - if @user.moves_account
     %p You have successfully linked your moves account to the application</p>
     %p Moves UID: #{@user.moves_account.uid}
   - else 
-    %p You haven't linked your fitbit account to the application
-    %form{ :action => '/auth/fitbit', :method => 'post' }
-      %input{ :type => 'submit', :value => 'Link with Fitbit'}
+    %p You haven't linked your moves account to the application
+    %form{ :action => '/auth/moves', :method => 'post' }
+      %input{ :type => 'submit', :value => 'Link with Moves'}
