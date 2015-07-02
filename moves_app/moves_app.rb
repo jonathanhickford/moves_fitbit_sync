@@ -223,22 +223,20 @@ class MovesApp < Sinatra::Base
     auth = request.env['omniauth.auth']
     
     if params[:provider] == "moves"
-      user = User.find(session['user_id'])
-      user.moves_account = MovesAccount.new(
+      @user.moves_account = MovesAccount.new(
         uid: auth['uid'],
         access_token: auth['credentials']['token'],
         refresh_token: auth['credentials']['refresh_token'],
         expires_at: Time.at(auth['credentials']['expires_at'])
       )
-      user.save
+      @user.save
     elsif params[:provider] == "fitbit"
-      user = User.find(session['user_id'])
-      user.fitbit_account = FitbitAccount.new(
+      @user.fitbit_account = FitbitAccount.new(
         uid: auth['uid'],
         access_token: auth['credentials']['token'],
         secret_token: auth['credentials']['secret'],
       )
-      user.save
+      @user.save
     end
 
     erb "<h1>#{params[:provider]}</h1>
