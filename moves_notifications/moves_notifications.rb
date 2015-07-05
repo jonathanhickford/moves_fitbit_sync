@@ -21,7 +21,7 @@ class MovesNotifications < Sinatra::Base
   	n = env['HTTP_X_MOVES_NONCE']
   	b = request.body.read.to_s
 
-  	message = [b,t,n].join('|')
+  	message = [b,t,n].join('')
   	calculated_sig = Base64.encode64("#{OpenSSL::HMAC.digest('sha1',ENV['MOVES_CLIENT_SECRET'], message)}").chomp
   	data = {
   		:signature => s,
