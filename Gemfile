@@ -15,5 +15,9 @@ gem "haml"
 gem "rspec"
 gem "json_spec"
 gem "puma"
-
+gem 'rspec_junit_formatter'
+gem "ci_reporter"
+gem 'ci_reporter_rspec'
+gem "simplecov"
+gem "simplecov-csv"
 

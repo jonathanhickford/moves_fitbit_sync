@@ -1,5 +1,5 @@
 ENV['RACK_ENV'] = 'test'
-
+require File.expand_path('../../spec_helper', __FILE__)
 require File.expand_path('../../../moves_notifications/moves_notifications', __FILE__)
 require 'rspec'
 require 'json_spec'
