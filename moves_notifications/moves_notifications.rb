@@ -8,9 +8,6 @@ Bundler.require
 
 class MovesNotifications < Sinatra::Base
   
-  configure do
-  end
-
   configure :development do
     register Sinatra::Reloader
   end
@@ -21,8 +18,11 @@ class MovesNotifications < Sinatra::Base
   	n = env['HTTP_X_MOVES_NONCE']
   	b = request.body.read.to_s
 
-  	message = [b,t,n].join('')
-  	calculated_sig = Base64.encode64("#{OpenSSL::HMAC.digest('sha1',ENV['MOVES_CLIENT_SECRET'], message)}").chomp
+  	calculated_sig = Base64.encode64("#{OpenSSL::HMAC.digest('sha1',ENV['MOVES_CLIENT_SECRET'], [b,t,n].join(''))}").chomp
+
+    if s != calculated_sig
+      halt 403, "Incorrect signature"
+    end
   	data = {
   		:signature => s,
   		:calculated_sig => calculated_sig,
