@@ -1,9 +1,7 @@
 require 'rubygems'
 require 'bundler'
 
-Bundler.require
-
-FITBIT_BIKE_RIDE_PARENT_ID = ENV['FITBIT_BIKE_RIDE_PARENT_ID']
+Bundler.require(:default, ENV['RACK_ENV'])
 
 require File.expand_path('../models', __FILE__)
 
@@ -108,7 +106,7 @@ class MovesApp < Sinatra::Base
     def log_ride_to_fitbit_link(ride)
       @ride = ride
       erb "
-        <button onclick=\"event.preventDefault(); $.post( '/fitbit/log_activity', { activity_id: '<%= BikeRide.activityId%>', duration: '<%= @ride.duration %>' , distance: '<%= @ride.distance %>', start_time: '<%= @ride.startTime %>', start_date: '<%= @ride.date %>'} );\">Log</button>
+        <button onclick=\"event.preventDefault(); $.post( '/fitbit/log_activity', { activity_id: '<%= BikeRide.activityId%>', duration: '<%= @ride.duration %>' , distance: '<%= @ride.distance %>', start_time: '<%= @ride.startTime %>', start_date: '<%= @ride.date %>', source: '<%= @ride.source %>'} );\">Log</button>
       "
     end
 
@@ -156,13 +154,10 @@ class MovesApp < Sinatra::Base
       moves_token = @user.moves_account.access_token
       moves = Moves::Client.new(moves_token)
     end
-
-
   end
 
   get '/' do
-    authenticated!
-    
+    authenticated! 
     haml :index
   end
 
@@ -223,31 +218,45 @@ class MovesApp < Sinatra::Base
     auth = request.env['omniauth.auth']
     
     if params[:provider] == "moves"
-      @user.moves_account = MovesAccount.new(
-        uid: auth['uid'],
-        access_token: auth['credentials']['token'],
-        refresh_token: auth['credentials']['refresh_token'],
-        expires_at: Time.at(auth['credentials']['expires_at'])
-      )
-      @user.save
+      begin
+        @user.moves_account = MovesAccount.new(
+          uid: auth['uid'],
+          access_token: auth['credentials']['token'],
+          refresh_token: auth['credentials']['refresh_token'],
+          expires_at: Time.at(auth['credentials']['expires_at'])
+        )
+        @user.save
+        flash[:success] = 'Successfully linked to moves'
+      rescue Exception => e
+        flash[:error] = 'Error linking to moves'
+        puts "Error: #{e}"
+        puts "#{params}"
+      end
     elsif params[:provider] == "fitbit"
-      @user.fitbit_account = FitbitAccount.new(
-        uid: auth['uid'],
-        access_token: auth['credentials']['token'],
-        secret_token: auth['credentials']['secret'],
-      )
-      @user.save
+      begin
+        @user.fitbit_account = FitbitAccount.new(
+          uid: auth['uid'],
+          access_token: auth['credentials']['token'],
+          secret_token: auth['credentials']['secret'],
+        )
+        @user.save
+        flash[:success] = 'Successfully linked to fitbit'
+      rescue Exception => e
+        flash[:error] = 'Error linking to fitbit'
+        puts "Error: #{e}"
+        puts "#{params}"
+      end
     end
-
-    erb "<h1>#{params[:provider]}</h1>
-         <pre>#{params}</pre>"
+    redirect '/'
   end
   
   get '/auth/failure' do
     authenticated!
-    erb "<h1>Authentication Failed:</h1><h3>message:<h3><pre>#{params}</pre>"
+    flash[:error] = 'Error linking to account'
+    puts "Error: #{e}"
+    puts "#{params}"
+    redirect '/'
   end
-
 
 
    before '*/summary/:date' do
@@ -315,24 +324,20 @@ class MovesApp < Sinatra::Base
   end
 
 
-
-
   post "/fitbit/log_activity" do
-    @response = @fitbit.log_activity(
-      :activityId => params[:activity_id],
-      :durationMillis => params[:duration],
-      :distance => params[:distance],
-      :startTime => params[:start_time],
-      :date => params[:start_date],
-      :distanceUnit => Fitgem::ApiDistanceUnit.kilometers
+    ride = BikeRide.new(
+      DateTime.strptime(params[:start_date] + ' ' + params[:start_time], "%Y-%m-%d %H:%M"),
+      params[:duration], 
+      params[:distance], 
+      params[:source]
     )
+    @resp = ride.log_to_fitbit(@fitbit)
 
-    if @response && @response['activityLog'] && @response['activityLog']['logId']
-      erb "{response: '<%= @response['activityLog']['logId'] >%'", :layout => !request.xhr?
-    else
-      halt 404, "did not log"
+    unless ( @resp && @resp['activityLog'] && @resp['activityLog']['logId'] )
+      halt 404, "did not log" 
     end
-
+    
+    erb "{response: '<%= @resp['activityLog']['logId'] >%'", :layout => !request.xhr?
   end
 
 end

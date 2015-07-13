@@ -1,3 +1,5 @@
+FITBIT_BIKE_RIDE_PARENT_ID = ENV['FITBIT_BIKE_RIDE_PARENT_ID']
+
 class User
   include Mongoid::Document
   include BCrypt
@@ -75,12 +77,28 @@ class BikeRide
     @source = source
   end
 
+  def ==(o)
+    # Bike rides are equal if they have equal durations, distances, sources, dates and start times with the same minute
+    self.date == o.date && self.startTime == o.startTime && self.duration == o.duration && self.distance == o.distance && self.source == o.source
+  end
+
   def startTime
     @startDateTime.strftime("%H:%M")
   end
 
   def date
     @startDateTime.strftime("%Y-%m-%d")
+  end
+
+  def log_to_fitbit(fitbit)
+    fitbit.log_activity(
+      :activityId => BikeRide.activityId,
+      :durationMillis => @duration,
+      :distance => @distance,
+      :startTime => self.startTime,
+      :date => self.date,
+      :distanceUnit => Fitgem::ApiDistanceUnit.kilometers
+    )
   end
 
   def self.rides_from_fitbit(data)
@@ -118,5 +136,10 @@ class BikeRide
       new_value
     end
   end
+
+  def self.select_moves_rides(rides)
+    rides.select {|k,v| v.source == :moves}
+  end
+
 
 end
