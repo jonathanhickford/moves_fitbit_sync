@@ -1,5 +1,6 @@
 ENV['RACK_ENV'] = 'test'
 ENV['MOVES_CLIENT_SECRET'] = 'abc'
+ENV['QUEUE'] = 'process_day'
 require File.expand_path('../../spec_helper', __FILE__)
 require File.expand_path('../../../moves_notifications/moves_notifications', __FILE__)
 
