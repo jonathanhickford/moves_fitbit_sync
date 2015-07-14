@@ -3,13 +3,32 @@ require 'bundler'
 
 Bundler.require(:default, ENV['RACK_ENV'])
 require File.expand_path('../../moves_app/models', __FILE__)
+require File.expand_path('../../moves_app/helpers', __FILE__)
 
 
 class ProcessDay
+  include MovesHelpers
   @queue = :process_day
   
   def self.perform(moves_user_id, day)
     user = User.find(moves_user_id)
+    date = Date.strptime(day, '%Y-%m-%d')
+
+    puts "Process #{user.name} for #{date}"
+    moves = moves_client_for_user(user)
+    fitbit = fitbit_client_for_user(user)
+
+    fitbit_data = fitbit.activities_on_date date
+    fitbit_rides = BikeRide.rides_from_fitbit(fitbit_data)
+    
+    moves_data = moves.daily_activities(date)
+    moves_rides = BikeRide.rides_from_moves(moves_data)
+    
+    cycle_data = BikeRide.merge_rides(fitbit_rides, moves_rides)
+    BikeRide.select_moves_rides(cycle_data).each do | time, ride |
+      puts "Logging ride to fitbit: #{ride}"
+      ride.log_to_fitbit(fitbit)
+    end
   end
 end
 

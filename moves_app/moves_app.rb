@@ -4,6 +4,7 @@ require 'bundler'
 Bundler.require(:default, ENV['RACK_ENV'])
 
 require File.expand_path('../models', __FILE__)
+require File.expand_path('../helpers', __FILE__)
 
 class MovesApp < Sinatra::Base
   
@@ -58,7 +59,7 @@ class MovesApp < Sinatra::Base
 
 
 
-
+  helpers MovesHelpers
   helpers do
     def render_rides(rides, logging=false)
       @rides = rides
@@ -133,16 +134,7 @@ class MovesApp < Sinatra::Base
         redirect '/'
       end
 
-      fitbit = Fitgem::Client.new ({
-        :consumer_key => ENV['FITBIT_CLIENT_ID'],
-        :consumer_secret => ENV['FITBIT_CLIENT_SECRET'],
-        :token => @user.fitbit_account.access_token,
-        :secret => @user.fitbit_account.secret_token,
-        :unit_system => Fitgem::ApiUnitSystem.METRIC
-      })
-     
-      fitbit.reconnect(@user.fitbit_account.access_token, @user.fitbit_account.secret_token)
-      fitbit
+      fitbit_client_for_user(@user)
     end
 
     def moves_client
@@ -151,8 +143,7 @@ class MovesApp < Sinatra::Base
         redirect '/'
       end
 
-      moves_token = @user.moves_account.access_token
-      moves = Moves::Client.new(moves_token)
+      moves_client_for_user(@user)
     end
   end
 
