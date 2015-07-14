@@ -4,3 +4,4 @@ moves_auth.json
 fitbit_auth.json
 coverage/
 spec/reports/
+dump.rdb
