@@ -11,6 +11,8 @@ class ProcessDay
   @queue = :process_day
   
   def self.perform(moves_user_id, day)
+    Mongoid.load!(File.expand_path('../../config/mongoid.yml', __FILE__))
+    
     user = User.find(moves_user_id)
     date = Date.strptime(day, '%Y-%m-%d')
 
