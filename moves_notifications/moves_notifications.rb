@@ -13,7 +13,7 @@ class ProcessDay
   def self.perform(moves_user_id, day)
     Mongoid.load!(File.expand_path('../../config/mongoid.yml', __FILE__))
     
-    user = User.find(moves_user_id)
+    user = User.where("moves_account.uid" => moves_user_id)
     date = Date.strptime(day, '%Y-%m-%d')
 
     puts "Process #{user.name} for #{date}"
